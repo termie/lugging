@@ -6,9 +6,11 @@
 #-----------------------------------------------------------------------------
 
 import sys
-import zmq
-import pymongo
 import json
+
+import pymongo
+import zmq
+from pymongo import collection
 
 class MongoZMQ(object):
     """
@@ -28,7 +30,13 @@ class MongoZMQ(object):
         self._table_name = table_name
         self._conn = pymongo.Connection()
         self._db = self._conn[self._db_name]
-        self._table = self._db[self._table_name]
+        if self._table_name not in self._db.collection_names():
+          self._table = collection.Collection(self._db,
+                                              self._table_name,
+                                              capped=True,
+                                              size=10000000)
+        else:
+          self._table = self._db[self._table_name]
 
     #def _doc_to_json(self, doc):
     #    return json.dumps(doc,default=pymongo.json_util.default)
@@ -37,9 +45,9 @@ class MongoZMQ(object):
         """
         Inserts a document (dictionary) into mongo database table
         """
-        print 'adding docment %s' % (doc)
+        #print 'adding docment %s' % (doc)
         try:
-            self._table.insert(doc)
+            self._table.insert(doc, safe=False, check_keys=False)
         except Exception,e:
             return 'Error: %s' % e
 
@@ -60,7 +68,7 @@ class MongoZMQ(object):
         socket.bind(self._bind_addr)
         while True:
             msg = socket.recv_multipart()
-            print "Received msg: ", msg
+            #print "Received msg: ", msg
             if  len(msg) != 3:
                 error_msg = 'invalid message received: %s' % msg
                 print error_msg
@@ -84,7 +92,7 @@ class MongoZMQ(object):
             socket.send_multipart(reply)
 
 def main():
-  MongoZMQ(sys.argv[1:]).start()
+  MongoZMQ(*sys.argv[1:]).start()
 
 if __name__ == "__main__":
    main()
